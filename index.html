@@ -164,7 +164,8 @@ html,body{height:100%;background:var(--bg);font-family:"Hiragino Sans","Hiragino
 </select><label class="il">商品</label><button class="psb" id="f-psb" onclick="openModal('freight')">&#x1F4E6; 商品を選択してください</button><div id="f-psd" style="display:none"></div><label class="il" style="margin-top:6px">台数</label><div class="ir"><input type="number" id="f-qty" value="1" min="1" max="99" oninput="calcFreight()"><span class="iu">台</span></div><div class="f-res"><div class="f-rl">運賃目安（&#xD7;1.5・百円切り上げ）</div><div class="f-rv" id="f-res-v">&#x2014;</div><div class="f-rs" id="f-res-s">都道府県と商品を選択してください</div></div></div></div>
 <div class="pg" id="pg-kaku">
 <div class="hint"><b>外掛け：</b>仕切 &#xD7;（1＋掛け率）例）12%&#x2192;&#xD7;1.12　<b>内掛け：</b>仕切 &#xF7;（1－掛け率）例）12%&#x2192;&#xF7;0.88<br>仕切価格は画面に表示されません。</div>
-<div class="card" style="margin-bottom:12px"><div class="ct">共通設定</div><div style="display:flex;gap:8px;margin-bottom:10px"><div style="flex:1"><label class="il">区分</label><select class="sel" id="kbn-sel" onchange="onSettingChange()" style="margin-bottom:0"><option value="C">C</option><option value="K" selected>K</option><option value="J">J</option></select></div><div style="flex:2"><label class="il">掛け率（%）</label><div class="ir"><input type="number" id="k-rate" placeholder="例:12" oninput="onSettingChange()" step="1" min="0" max="99"><span class="iu">%</span></div></div></div><div class="mode-sw"><button class="mbt on" id="m-outer" onclick="setMode('outer')">外掛け（&#xD7;1.xx）</button><button class="mbt" id="m-inner" onclick="setMode('inner')">内掛け（&#xF7;0.xx）</button></div><label class="il">配送先（任意）</label><select class="sel" id="k-pref" onchange="onSettingChange()" style="margin-bottom:0"><option value="">―― 未選択（運賃なし）――</option>
+<div class="card" style="margin-bottom:12px"><div class="ct">共通設定</div><div style="display:flex;gap:8px;margin-bottom:10px"><div style="flex:1"><label class="il">区分</label><select class="sel" id="kbn-sel" onchange="onSettingChange()" style="margin-bottom:0"><option value="C">C</option><option value="K" selected>K</option><option value="J">J</option></select></div><div style="flex:2"><label class="il">掛け率（%）</label><div class="ir"><input type="number" id="k-rate" placeholder="例:12" oninput="onSettingChange()" step="1" min="0" max="99"><span class="iu">%</span></div></div></div><div class="mode-sw"><button class="mbt on" id="m-outer" onclick="setMode('outer')">外掛け（&#xD7;1.xx）</button><button class="mbt" id="m-inner" onclick="setMode('inner')">内掛け（&#xF7;0.xx）</button></div><label class="il">配送先（任意）</label><div id="nagasaki-wrap" style="display:none;margin-top:10px;padding:10px 12px;background:var(--su);border:1.5px solid var(--bd);border-radius:var(--rs);align-items:center;justify-content:space-between"><div style="font-size:12px;font-weight:700;color:var(--tx)">長崎 JA仕切り</div><button id="nagasaki-btn" onclick="toggleNagasaki()" style="padding:5px 16px;border:2px solid var(--bd);border-radius:20px;background:var(--su2);color:var(--sb);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s">OFF</button></div>
+<select class="sel" id="k-pref" onchange="onSettingChange()" style="margin-bottom:0"><option value="">―― 未選択（運賃なし）――</option>
 <option value="佐賀県">佐賀県</option>
 <option value="福岡県">福岡県</option>
 <option value="長崎県">長崎県</option>
@@ -308,7 +309,46 @@ function setMode(m){
   document.getElementById('m-inner').classList.toggle('on',m==='inner');
   calcAll();
 }
-function onSettingChange(){kakuKbn=document.getElementById('kbn-sel').value||'K';calcAll();}
+function onSettingChange(){
+  kakuKbn=document.getElementById('kbn-sel').value||'K';
+  // J区分のとき長崎スイッチを表示
+  var nw=document.getElementById('nagasaki-wrap');
+  if(nw){if(kakuKbn==='J'){nw.style.display='flex';}else{nw.style.display='none';nagasakiOn=false;var btn=document.getElementById('nagasaki-btn');if(btn){btn.textContent='OFF';btn.style.background='var(--su2)';btn.style.color='var(--sb)';btn.style.borderColor='var(--bd)';}}}
+  calcAll();
+}
+
+var nagasakiOn=false;
+// 仕切価格取得（長崎JA特別計算対応）
+function getShikiri(prod){
+  if(!prod||!prod.prices)return 0;
+  var kbn=document.getElementById('kbn-sel').value||'K';
+  if(kbn==='J'&&nagasakiOn){
+    var kp=prod.prices['K']||0;
+    return kp?Math.ceil(kp/0.94/100)*100:0;
+  }
+  return prod.prices[kbn]||0;
+}
+function toggleNagasaki(){
+  nagasakiOn=!nagasakiOn;
+  var btn=document.getElementById('nagasaki-btn');
+  if(btn){
+    btn.textContent=nagasakiOn?'ON':'OFF';
+    btn.style.background=nagasakiOn?'var(--nv)':'var(--su2)';
+    btn.style.color=nagasakiOn?'#fff':'var(--sb)';
+    btn.style.borderColor=nagasakiOn?'var(--nv)':'var(--bd)';
+  }
+  // 仕切価格表示中のアイテムも更新
+  items.forEach(function(it){
+    if(it.sv&&it.prod){
+      var disp=document.getElementById('sd'+it.id);
+      if(disp&&disp.style.display!=='none'){
+        var v=getShikiri(it.prod);
+        disp.textContent=v?'\xA5'+v.toLocaleString():'\u30c7\u30fc\u30bf\u306a\u3057';
+      }
+    }
+  });
+  calcAll();
+}
 
 function addItem(){
   var id='it'+(itemSeq++);
@@ -326,7 +366,7 @@ function toggleSV(id){
   if(!btn||!disp)return;
   if(it.sv){
     btn.textContent='ON';btn.style.background='var(--nv)';btn.style.color='#fff';btn.style.borderColor='var(--nv)';
-    var v=it.prod&&it.prod.prices&&it.prod.prices[kakuKbn]?it.prod.prices[kakuKbn]:0;
+    var v=getShikiri(it.prod);
     disp.style.display='inline';disp.textContent=v?'\xA5'+v.toLocaleString():'\u30c7\u30fc\u30bf\u306a\u3057';
   }else{
     btn.textContent='OFF';btn.style.background='var(--su2)';btn.style.color='var(--sb)';btn.style.borderColor='var(--bd)';
@@ -378,7 +418,7 @@ function calcAll(){
   items.forEach(function(it){
     var se=document.getElementById('isub'+it.id);
     if(!it.prod){if(se)se.style.display='none';return;}
-    var sv=it.prod.prices&&it.prod.prices[kbn]?it.prod.prices[kbn]:0;
+    var sv=getShikiri(it.prod);
     if(!sv){if(se)se.style.display='none';return;}
     anyReady=true;
     var unit=kakuMode==='outer'?sv*(1+rate/100):sv/(1-rate/100);
