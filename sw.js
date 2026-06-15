@@ -1,4 +1,4 @@
-const CACHE = 'sgmt-kakaku-v2';
+const CACHE = 'sgmt-kakaku-v3';
 
 self.addEventListener('install', function(e) {
   e.waitUntil(
@@ -17,6 +17,7 @@ self.addEventListener('install', function(e) {
 });
 
 self.addEventListener('activate', function(e) {
+  // 古いキャッシュを全削除
   e.waitUntil(
     caches.keys().then(function(keys) {
       return Promise.all(
@@ -28,10 +29,19 @@ self.addEventListener('activate', function(e) {
 });
 
 self.addEventListener('fetch', function(e) {
+  // ネットワーク優先：ネットがあれば常に最新を取得、失敗時のみキャッシュ使用
   e.respondWith(
-    caches.match(e.request).then(function(r) {
-      return r || fetch(e.request).catch(function() {
-        return caches.match('./index.html');
+    fetch(e.request).then(function(response) {
+      // 取得成功したらキャッシュも更新
+      var clone = response.clone();
+      caches.open(CACHE).then(function(cache) {
+        cache.put(e.request, clone);
+      });
+      return response;
+    }).catch(function() {
+      // オフライン時はキャッシュから返す
+      return caches.match(e.request).then(function(r) {
+        return r || caches.match('./index.html');
       });
     })
   );
